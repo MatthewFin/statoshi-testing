@@ -1,4 +1,4 @@
-search_index: /opt/graphite/storage
+search_index: /opt/graphite/index
 finders:
   - graphite_api.finders.whisper.WhisperFinder
 functions:
@@ -7,4 +7,4 @@ functions:
 whisper:
   directories:
     - /opt/graphite/storage/whisper
-time_zone: <system timezone> or UTC
+time_zone: UTC
