@@ -5,6 +5,7 @@ RUN apt-get -y update \
   && apt-get -y upgrade \
   && apt-get -y install vim \
   python-dev \
+  nginx \
   python-flup \
   python-pip \
   python-ldap \
@@ -78,6 +79,12 @@ ADD conf/opt/graphite/conf/*.conf /opt/graphite/conf/
 # config statsd
 ADD conf/opt/statsd/config_*.js /opt/statsd/
 
+# config nginx
+RUN rm /etc/nginx/sites-enabled/default
+ADD conf/etc/nginx/nginx.conf /etc/nginx/nginx.conf
+ADD conf/etc/nginx/sites-enabled/graphite-statsd.conf /etc/nginx/sites-enabled/graphite-statsd.conf
+
+
 # logging support
 RUN mkdir -p /var/log/carbon /var/log/graphite /var/log/nginx
 ADD conf/etc/logrotate.d/graphite-statsd /etc/logrotate.d/graphite-statsd
@@ -99,7 +106,7 @@ RUN apt-get clean\
 
 # defaults
 EXPOSE 80 2003-2004 2023-2024 8080 8125 8125/udp 8126 8000
-VOLUME ["/opt/graphite/conf", "/opt/graphite/storage", "/etc/graphite-api.yaml", "/opt/statsd", "/etc/logrotate.d", "/var/log"]
+VOLUME ["/opt/graphite/conf", "/opt/graphite/storage", "/etc/nginx", "/etc/graphite-api.yaml", "/opt/statsd", "/etc/logrotate.d", "/var/log"]
 WORKDIR /
 ENV HOME /root
 ENV STATSD_INTERFACE udp
