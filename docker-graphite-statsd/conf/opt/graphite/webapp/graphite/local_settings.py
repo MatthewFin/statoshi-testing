@@ -204,6 +204,9 @@
 
 import os
 
+MEMCACHE_HOSTS = ['127.0.0.1:11211']
+DEFAULT_CACHE_DURATION = 600
+
 LOG_DIR = '/var/log/graphite'
 SECRET_KEY = '$(date +%s | sha256sum | base64 | head -c 64)'
 
@@ -212,4 +215,3 @@ if (os.getenv("MEMCACHE_HOST") is not None):
 
 if (os.getenv("DEFAULT_CACHE_DURATION") is not None):
     DEFAULT_CACHE_DURATION = int(os.getenv("CACHE_DURATION"))
-
