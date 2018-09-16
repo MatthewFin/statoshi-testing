@@ -4,7 +4,6 @@ MAINTAINER Denys Zhdanov <denis.zhdanov@gmail.com>
 RUN apt-get -y update \
   && apt-get -y upgrade \
   && apt-get -y install vim \
-  nginx \
   python-dev \
   python-flup \
   python-pip \
@@ -12,7 +11,6 @@ RUN apt-get -y update \
   expect \
   git \
   memcached \
-  sqlite3 \
   libffi-dev \
   libcairo2 \
   libcairo2-dev \
@@ -32,18 +30,14 @@ RUN if [ ! -z "${CONTAINER_TIMEZONE}" ]; \
     dpkg-reconfigure -f noninteractive tzdata; \
     fi
 
-# fix python dependencies (LTS Django)
-RUN python -m pip install --upgrade pip && \
-  pip install django==1.11.15
-
 ARG version=1.1.4
 ARG whisper_version=${version}
 ARG carbon_version=${version}
-ARG graphite_version=${version}
+ARG graphite_api_version=1.1.2
 
 ARG whisper_repo=https://github.com/graphite-project/whisper.git
 ARG carbon_repo=https://github.com/graphite-project/carbon.git
-ARG graphite_repo=https://github.com/graphite-project/graphite-web.git
+ARG graphite_api_repo=https://github.com/brutasse/graphite-api.git
 
 ARG statsd_version=v0.8.0
 
@@ -60,35 +54,29 @@ WORKDIR /usr/local/src/carbon
 RUN pip install -r requirements.txt \
   && python ./setup.py install
 
-# install graphite
-RUN git clone -b ${graphite_version} --depth 1 ${graphite_repo} /usr/local/src/graphite-web
-WORKDIR /usr/local/src/graphite-web
-RUN pip install -r requirements.txt \
-  && python ./setup.py install
+
+# install graphite-api
+# RUN git clone - ${graphite_api_version} --depth 1 ${graphite_api_repo} /usr/local/src/graphite-api
+# WORKDIR /usr/local/src/graphite-api
+# RUN pip install -r requirements.txt \
+#   && python ./setup.py install
+
+# install graphite-api
+RUN apt-get install -y build-essential
+RUN pip install gunicorn graphite-api[sentry,cyanite]
+ONBUILD ADD graphite-api.yaml /etc/graphite-api.yaml
+ONBUILD RUN chmod 0644 /etc/graphite-api.yaml
+EXPOSE 8000
+CMD exec gunicorn -b 0.0.0.0:8000 -w 2 --log-level debug graphite_api.app:app
 
 # install statsd
 RUN git clone -b ${statsd_version} ${statsd_repo} /opt/statsd
 
 # config graphite
 ADD conf/opt/graphite/conf/*.conf /opt/graphite/conf/
-ADD conf/opt/graphite/webapp/graphite/local_settings.py /opt/graphite/webapp/graphite/local_settings.py
-# ADD conf/opt/graphite/webapp/graphite/app_settings.py /opt/graphite/webapp/graphite/app_settings.py
-WORKDIR /opt/graphite/webapp
-RUN mkdir -p /var/log/graphite/ \
-  && PYTHONPATH=/opt/graphite/webapp django-admin.py collectstatic --noinput --settings=graphite.settings
 
 # config statsd
 ADD conf/opt/statsd/config_*.js /opt/statsd/
-
-# config nginx
-RUN rm /etc/nginx/sites-enabled/default
-ADD conf/etc/nginx/nginx.conf /etc/nginx/nginx.conf
-ADD conf/etc/nginx/sites-enabled/graphite-statsd.conf /etc/nginx/sites-enabled/graphite-statsd.conf
-
-# init django admin
-ADD conf/usr/local/bin/django_admin_init.exp /usr/local/bin/django_admin_init.exp
-ADD conf/usr/local/bin/manage.sh /usr/local/bin/manage.sh
-RUN chmod +x /usr/local/bin/manage.sh && /usr/local/bin/django_admin_init.exp
 
 # logging support
 RUN mkdir -p /var/log/carbon /var/log/graphite /var/log/nginx
@@ -110,8 +98,8 @@ RUN apt-get clean\
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # defaults
-EXPOSE 80 2003-2004 2023-2024 8080 8125 8125/udp 8126
-VOLUME ["/opt/graphite/conf", "/opt/graphite/storage", "/opt/graphite/webapp/graphite/functions/custom", "/etc/nginx", "/opt/statsd", "/etc/logrotate.d", "/var/log"]
+EXPOSE 80 2003-2004 2023-2024 8080 8125 8125/udp 8126 8000
+VOLUME ["/opt/graphite/conf", "/opt/graphite/storage", "/etc/graphite-api.yaml", "/opt/statsd", "/etc/logrotate.d", "/var/log"]
 WORKDIR /
 ENV HOME /root
 ENV STATSD_INTERFACE udp
